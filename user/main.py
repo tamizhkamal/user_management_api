@@ -14,14 +14,24 @@ import base64
 
 router = APIRouter(prefix="/user")
 
-# @router.get("/test", tags=['test'])
-# async def test_api():
-#     return {"Message": "API Working Successfully"}
 
 @router.get("/all_user_data", tags=['User'])
 async def all_user_data(db: Session = Depends(get_db)):
     data = db.query(UserMaster).all()
     return {'data':data}
+
+
+@router.put("/image_update_data/{id}", tags=['User'])
+async def image_update_data(user: UserMaster = Depends(get_current_active_user), image: UploadFile = File(...), db: Session = Depends(get_db)):
+    user = db.query(UserMaster).filter(UserMaster.id == user.id).first()
+    if not user:
+        return {"message": "User not found"}
+    image_data = await image.read()
+    encoded_image = base64.b64encode(image_data).decode('utf-8')
+    user.image = encoded_image
+    db.commit()
+    return {"message": "Image updated successfully", "user_id": id}
+
 
 @router.get("/filter_user_data", tags=['User'])
 async def filter_user_data(user_id: int, db: Session = Depends(get_db)):
