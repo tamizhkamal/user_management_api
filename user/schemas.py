@@ -6,17 +6,27 @@ class UserCreate(BaseModel):
     username: str
     email: str
     contact_number: str
-    hashed_password: str
     location: Optional[str] = None
     pincode: Optional[str] = None
     is_admin: Optional[bool] = None
+
+class UserBase(UserCreate):
+    hashed_password: str
+
+class UserResponse(BaseModel):
+    data: List[UserBase]
+
 
 class ProjectCreate(BaseModel):
     name: str
     start_date: str
     end_date: str
     user_id: int
-    # image: Optional[UploadFile] = None
+
+class ProjectResponse(BaseModel):
+    data: List[ProjectCreate]
+
+
     
 class UserUpdate(BaseModel):
     username: str
@@ -35,5 +45,21 @@ class TaskCreate(BaseModel):
     priority: str
     start_time: str
     end_time: str
-    sub_tasks: Optional[List[SubTask]] = None  # Optional list of subtasks
+    parent_id: Optional[int] = None
     project_id: int
+
+
+
+class TaskItem(BaseModel):
+    id: int
+    name: str
+    due: str
+    priority: str
+    start_time: str
+    end_time: str
+    project_id: int
+    sub_tasks: Optional[List['TaskItem']] = []
+
+
+class TaskResponse(BaseModel):
+    data: List[TaskItem]

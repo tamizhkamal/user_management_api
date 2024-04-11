@@ -1,12 +1,13 @@
 import base64
 import datetime
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from Auth.crud import get_current_active_user
 from database import get_db
 from user.crud import delete_user_data, update_user_data
 from user.models import UserMaster, Project, Task
-from user.schemas import UserCreate, ProjectCreate, TaskCreate, UserUpdate
+from user.schemas import ProjectResponse, TaskItem, TaskResponse, UserBase, UserCreate, ProjectCreate, TaskCreate, UserResponse, UserUpdate
 from datetime import datetime
 from datetime import datetime
 import base64
@@ -15,10 +16,20 @@ import base64
 router = APIRouter(prefix="/user")
 
 
-@router.get("/all_user_data", tags=['User'])
+@router.get("/all_user_data", response_model=UserResponse, tags=['User'])
 async def all_user_data(db: Session = Depends(get_db)):
-    data = db.query(UserMaster).all()
-    return {'data':data}
+    users = db.query(UserMaster).all()
+    user_data = [
+        UserBase(
+            username=user.username,
+            email=user.email,
+            contact_number=user.contact_number,
+            is_admin=user.is_admin,
+            hashed_password=""
+            )
+        for user in users
+    ]
+    return UserResponse(data=user_data)
 
 
 @router.put("/image_update_data/{id}", tags=['User'])
@@ -49,7 +60,7 @@ async def filter_user_data(user_id: int, db: Session = Depends(get_db)):
     user_data = user.__dict__
     project_data = [project.__dict__ for project in projects]
     task_data = [task.__dict__ for task in tasks]
-    # sub_task_data = [sub_task.__dict__ for sub_task in sub_tasks]
+    
 
     return {
         "Message": "User data, associated projects, tasks, and sub-tasks fetched successfully",
@@ -95,10 +106,21 @@ async def create_project(project: ProjectCreate, user: UserMaster = Depends(get_
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))    
 
-@router.get("/all_project_data", tags=['Project'])
-async def all_project_data(user: UserMaster = Depends(get_current_active_user),db: Session = Depends(get_db)):
-    data = db.query(Project).all()
-    return {'data':data}
+@router.get("/all_project_data", response_model=ProjectResponse, tags=['Project'])
+async def all_project_data(user: UserMaster = Depends(get_current_active_user), db: Session = Depends(get_db)):
+    projects = db.query(Project).all()
+    project_data = [
+        ProjectCreate(
+            name=project.name,
+            start_date=project.start_date.isoformat(),
+            end_date=project.end_date.isoformat(),
+            user_id=project.user_id
+        )
+        for project in projects
+    ]
+    return ProjectResponse(data=project_data)
+
+
 
 
 @router.put("/update_project", tags=['Project'])
@@ -128,34 +150,40 @@ async def Delete_project(id:int,user: UserMaster = Depends(get_current_active_us
         return {"Message": "Project Deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))    
-    
-
+   
 @router.post("/create_task", tags=['Task'])
-async def create_task(task: TaskCreate,user: UserMaster = Depends(get_current_active_user), db: Session = Depends(get_db)):
+async def create_task(task: TaskCreate, user: UserMaster = Depends(get_current_active_user), db: Session = Depends(get_db)):
     try:
-        sub_tasks_data = []
-        if task.sub_tasks:
-            for sub_task_data in task.sub_tasks:
-                sub_task = {
-                    "id": sub_task_data.id,
-                    "sub_task_name": sub_task_data.sub_task_name,
-                    "start_time": sub_task_data.start_time,
-                    "end_time": sub_task_data.end_time,
-                    "status": sub_task_data.status
-                }
-                sub_tasks_data.append(sub_task)
-        
-        task_db = Task(
-            name=task.name,
-            due=task.due,
-            priority=task.priority,
-            start_time=task.start_time,
-            end_time=task.end_time,
-            sub_tasks=sub_tasks_data,
-            project_id=task.project_id,
-            created_by = user.id
+        max_order_by_id = db.query(func.max(Task.order_by_id)).filter(Task.created_by == user.id).scalar() or 0
 
-        )
+        new_order_by_id = max_order_by_id + 1
+
+        if task.parent_id == 0:  
+            task_db = Task(
+                name=task.name,
+                due=task.due,
+                priority=task.priority,
+                start_time=task.start_time,
+                end_time=task.end_time,
+                parent_id=None,
+                order_by_id=new_order_by_id,
+                project_id=task.project_id,
+                created_by=user.id
+            )
+        else:
+            parent_order_by_id = db.query(Task.order_by_id).filter(Task.id == task.parent_id).scalar()
+
+            task_db = Task(
+                name=task.name,
+                due=task.due,
+                priority=task.priority,
+                start_time=task.start_time,
+                end_time=task.end_time,
+                parent_id=task.parent_id,
+                order_by_id=parent_order_by_id + 1,
+                project_id=task.project_id,
+                created_by=user.id
+            )
         
         db.add(task_db)
         db.commit()
@@ -165,24 +193,56 @@ async def create_task(task: TaskCreate,user: UserMaster = Depends(get_current_ac
     except Exception as e:
         print(f"Error occurred: {str(e)}")
         db.rollback()
-        raise HTTPException(status_code=500, detail="An error occurred while creating the Task")    
+        raise HTTPException(status_code=500, detail="An error occurred while creating the Task")
 
+@router.get("/all_task_data", response_model=TaskResponse, tags=['Task'])
+async def all_task_data(user: UserMaster = Depends(get_current_active_user), db: Session = Depends(get_db)):
+    tasks = db.query(Task).all()
+    task_dict = {}
+    for task in tasks:
+        if task.parent_id is None:
+            parent_id = 0
+        else:
+            parent_id = task.parent_id
+        
+        if parent_id not in task_dict:
+            task_dict[parent_id] = []
+        task_dict[parent_id].append(task)
 
-@router.get("/all_task_data", tags=['Task'])
-async def all_task_data(user: UserMaster = Depends(get_current_active_user),db: Session = Depends(get_db)):
-    data = db.query(Task).all()
-    return {'data':data}
+    def build_hierarchy(parent_id):
+        task_data = []
+        if parent_id in task_dict:
+            
+            sorted_tasks = sorted(task_dict[parent_id], key=lambda x: x.order_by_id)
+            for task in sorted_tasks:
+                nested_tasks = build_hierarchy(task.id)  
+                task_item = TaskItem(
+                    id=task.id,
+                    name=task.name,
+                    due=task.due,
+                    priority=task.priority,
+                    start_time=task.start_time,
+                    end_time=task.end_time,
+                    project_id=task.project_id,
+                    sub_tasks=nested_tasks
+                )
+                task_data.append(task_item)
+        return task_data
+    
+    all_tasks = build_hierarchy(0)
+    return TaskResponse(data=all_tasks)
+
 
 @router.put("/update_task", tags=['Task'])
 async def update_task(id: int, task: TaskCreate, user: UserMaster = Depends(get_current_active_user), db: Session = Depends(get_db)):
     try:
-        # Retrieve the task from the database
+        
         task_db = db.query(Task).filter(Task.id == id).first()
         
         if not task_db:
             raise HTTPException(status_code=404, detail="Task not found")
         
-        # Update the task fields
+        
         task_db.name = task.name
         task_db.due = task.due
         task_db.priority = task.priority
@@ -190,7 +250,7 @@ async def update_task(id: int, task: TaskCreate, user: UserMaster = Depends(get_
         task_db.end_time = task.end_time
         task_db.project_id = task.project_id
         
-        # Update subtasks
+        
         sub_tasks_data = []
         if task.sub_tasks:
             for sub_task_data in task.sub_tasks:
@@ -203,10 +263,10 @@ async def update_task(id: int, task: TaskCreate, user: UserMaster = Depends(get_
                 }
                 sub_tasks_data.append(sub_task)
         
-        # Update the subtasks of the task
+        
         task_db.sub_tasks = sub_tasks_data
         
-        # Commit changes to the database
+        
         db.commit()
         
         return {"Message": "Task Updated successfully", 'data': task_db}
@@ -214,7 +274,7 @@ async def update_task(id: int, task: TaskCreate, user: UserMaster = Depends(get_
         print(f"Error occurred: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail="An error occurred while updating the Task")
-    
+
 
 @router.delete("/Delete_Task", tags=['Task'])
 async def Delete_Task(id:int,user: UserMaster = Depends(get_current_active_user), db: Session = Depends(get_db)):

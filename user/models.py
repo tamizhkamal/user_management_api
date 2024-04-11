@@ -36,7 +36,7 @@ class Project(Base):
     end_date = Column(Date)
     user_id = Column(Integer, ForeignKey('user_master.id'))
     delete = Column(Boolean)
-    user = relationship("UserMaster", back_populates="projects")  # Define relationship with UserMaster
+    user = relationship("UserMaster", back_populates="projects")
     created_by = Column(Integer, index=True)
     updated_by = Column(Integer, index=True)
 
@@ -46,10 +46,10 @@ class Task(Base):
     name = Column(String)
     due = Column(String)
     priority = Column(String)
-    start_time = Column(String)  # Assuming start_time and end_time are strings
+    start_time = Column(String)
     end_time = Column(String)
-    sub_tasks = Column(JSON)  # Storing subtasks as JSON
+    parent_id = Column(Integer, ForeignKey('task_master.id'), nullable=True)
+    order_by_id = Column(Integer)
     delete = Column(Boolean)
     created_by = Column(Integer, ForeignKey('user_master.id'))
     project_id = Column(Integer, ForeignKey('project_master.id'))
-    
