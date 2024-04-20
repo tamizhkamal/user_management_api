@@ -5,12 +5,13 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from Auth.crud import get_current_active_user
 from database import get_db
-from user.crud import delete_user_data, update_user_data
+from user.crud import delete_user_data, get_project_and_task_details, update_user_data
 from user.models import UserMaster, Project, Task
 from user.schemas import ProjectResponse, TaskItem, TaskResponse, UserBase, UserCreate, ProjectCreate, TaskCreate, UserResponse, UserUpdate
 from datetime import datetime
 from datetime import datetime
 import base64
+from concurrent.futures import ThreadPoolExecutor
 
 
 router = APIRouter(prefix="/user")
@@ -285,3 +286,11 @@ async def Delete_Task(id:int,user: UserMaster = Depends(get_current_active_user)
         return {"Message": "Project Deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))    
+
+
+@router.get("/project_and_task_details", tags=['Project_and_Task'])
+async def project_and_task_details(user: UserMaster = Depends(get_current_active_user), db: Session = Depends(get_db)):
+    with ThreadPoolExecutor() as executor:
+        future = executor.submit(get_project_and_task_details, user.id, db)
+        result = future.result()
+        return {"data": result}

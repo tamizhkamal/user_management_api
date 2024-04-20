@@ -1,7 +1,7 @@
 from dependencies import get_data_hash
 from requests import Session
-
-from user.models import UserMaster
+from fastapi import HTTPException
+from user.models import Project, Task, UserMaster
 from user.schemas import UserCreate, UserUpdate
 
 
@@ -54,3 +54,12 @@ def delete_user_data(id: int,db: Session):
     user_details.delete = True
     db.commit()
     return {"message":'User Deleted succesfully'}
+
+
+def get_project_and_task_details(user_id: int, db: Session):
+    try:
+        project = db.query(Project).filter(Project.user_id == user_id).first()
+        task = db.query(Task).filter(Task.project_id == project.id).first()
+        return {"project": project, "task": task}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

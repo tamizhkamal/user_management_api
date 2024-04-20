@@ -134,7 +134,7 @@ async def reset_password(request: ResetPassword,user = Depends(get_current_activ
 
 
 @router.post("/AddUser", tags=["User"])
-async def create_user(userdata: Userschema.UserCreate, db: Session = Depends(get_db)):
+async def create_user(userdata: Userschema.UserBase, db: Session = Depends(get_db)):
     final_dict = create_user_data(db, userdata)
     print("result", final_dict)
     return final_dict  
