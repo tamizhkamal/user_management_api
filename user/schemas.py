@@ -1,6 +1,6 @@
 from typing import List, Optional
 from fastapi import UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 class UserCreate(BaseModel):
     username: str
@@ -9,6 +9,8 @@ class UserCreate(BaseModel):
     location: Optional[str] = None
     pincode: Optional[str] = None
     is_admin: Optional[bool] = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 class UserBase(UserCreate):
     hashed_password: str
@@ -26,6 +28,7 @@ class ProjectCreate(BaseModel):
 class ProjectResponse(BaseModel):
     data: List[ProjectCreate]
 
+    model_config = ConfigDict(from_attributes=True)  # Corrected version
 
     
 class UserUpdate(BaseModel):
@@ -63,3 +66,22 @@ class TaskItem(BaseModel):
 
 class TaskResponse(BaseModel):
     data: List[TaskItem]
+
+
+
+# Pydantic models for serialization
+class TaskResponse(BaseModel):
+    id: int
+    name: str
+    due: str
+    priority: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProjectResponse(BaseModel):
+    id: int
+    name: str
+    tasks: list[TaskResponse]
+
+    model_config = ConfigDict(from_attributes=True)

@@ -21,9 +21,8 @@ from user.models import UserMaster
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-router = APIRouter(
-    prefix="/Auth",
-)
+router = APIRouter(tags=['Auth'])
+
 def generate_otp():
     return "".join([str(random.randint(0, 9)) for i in range(6)])
 
@@ -133,9 +132,5 @@ async def reset_password(request: ResetPassword,user = Depends(get_current_activ
 
 
 
-@router.post("/AddUser", tags=["User"])
-async def create_user(userdata: Userschema.UserBase, db: Session = Depends(get_db)):
-    final_dict = create_user_data(db, userdata)
-    print("result", final_dict)
-    return final_dict  
+
 

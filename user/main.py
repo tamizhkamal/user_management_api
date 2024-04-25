@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import datetime
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -5,17 +6,22 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from Auth.crud import get_current_active_user
 from database import get_db
-from user.crud import delete_user_data, get_project_and_task_details, update_user_data
+from user.crud import create_user_data, delete_user_data, get_project_and_task_details, update_user_data
 from user.models import UserMaster, Project, Task
 from user.schemas import ProjectResponse, TaskItem, TaskResponse, UserBase, UserCreate, ProjectCreate, TaskCreate, UserResponse, UserUpdate
 from datetime import datetime
 from datetime import datetime
 import base64
 from concurrent.futures import ThreadPoolExecutor
+from user import schemas as Userschema
 
+router = APIRouter(tags=['User'])  
 
-router = APIRouter(prefix="/user")
-
+@router.post("/AddUser", tags=["User"])
+async def AddUser(userdata: Userschema.UserBase, db: Session = Depends(get_db)):
+    final_dict = create_user_data(db, userdata)
+    print("result", final_dict)
+    return final_dict  
 
 @router.get("/all_user_data", response_model=UserResponse, tags=['User'])
 async def all_user_data(db: Session = Depends(get_db)):
@@ -152,14 +158,20 @@ async def Delete_project(id:int,user: UserMaster = Depends(get_current_active_us
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))    
    
-@router.post("/create_task", tags=['Task'])
-async def create_task(task: TaskCreate, user: UserMaster = Depends(get_current_active_user), db: Session = Depends(get_db)):
+@router.post("/create_task", tags=["Task"])
+async def create_task(
+    task: TaskCreate, 
+    user: UserMaster = Depends(get_current_active_user), 
+    db: Session = Depends(get_db)
+):
     try:
-        max_order_by_id = db.query(func.max(Task.order_by_id)).filter(Task.created_by == user.id).scalar() or 0
+        # Ensure we have a default value if `None` is returned
+        max_order_by_id = db.query(func.max(Task.order_by_id)).filter(Task.created_by == user.id).scalar()
+        max_order_by_id = max_order_by_id if max_order_by_id is not None else 0
 
         new_order_by_id = max_order_by_id + 1
 
-        if task.parent_id == 0:  
+        if task.parent_id == 0:
             task_db = Task(
                 name=task.name,
                 due=task.due,
@@ -172,7 +184,10 @@ async def create_task(task: TaskCreate, user: UserMaster = Depends(get_current_a
                 created_by=user.id
             )
         else:
+            # Check for parent task and handle potential `None`
             parent_order_by_id = db.query(Task.order_by_id).filter(Task.id == task.parent_id).scalar()
+            if parent_order_by_id is None:
+                raise HTTPException(status_code=400, detail="Parent task not found")
 
             task_db = Task(
                 name=task.name,
@@ -185,16 +200,17 @@ async def create_task(task: TaskCreate, user: UserMaster = Depends(get_current_a
                 project_id=task.project_id,
                 created_by=user.id
             )
-        
+
+        # Add to database
         db.add(task_db)
-        db.commit()
-        db.refresh(task_db)
-        
-        return {"Message": "Task created successfully", 'data': task_db}
+        db.commit()  # Commit changes
+        db.refresh(task_db)  # Refresh object from the database to get updated values
+
+        return {"message": "Task created successfully", "data": task_db}
+    
     except Exception as e:
-        print(f"Error occurred: {str(e)}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail="An error occurred while creating the Task")
+        db.rollback()  # Roll back if something goes wrong
+        raise HTTPException(status_code=500, detail=f"An error occurred while creating the task: {str(e)}")
 
 @router.get("/all_task_data", response_model=TaskResponse, tags=['Task'])
 async def all_task_data(user: UserMaster = Depends(get_current_active_user), db: Session = Depends(get_db)):
@@ -202,7 +218,7 @@ async def all_task_data(user: UserMaster = Depends(get_current_active_user), db:
     task_dict = {}
     for task in tasks:
         if task.parent_id is None:
-            parent_id = 0
+            parent_id = 0                                                                                                                                               
         else:
             parent_id = task.parent_id
         
@@ -287,10 +303,20 @@ async def Delete_Task(id:int,user: UserMaster = Depends(get_current_active_user)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))    
 
-
+executor = ThreadPoolExecutor(max_workers=10)
+# Endpoint to get project and task details using ThreadPoolExecutor
 @router.get("/project_and_task_details", tags=['Project_and_Task'])
-async def project_and_task_details(user: UserMaster = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    with ThreadPoolExecutor() as executor:
-        future = executor.submit(get_project_and_task_details, user.id, db)
-        result = future.result()
-        return {"data": result}
+async def project_and_task_details(
+    user: UserMaster = Depends(get_current_active_user), 
+    db: Session = Depends(get_db)
+):
+    try:
+        # Use asyncio.to_thread to run the blocking function in a separate thread
+        data = await asyncio.to_thread(get_project_and_task_details, db)
+        return {"data": data}
+    
+    except HTTPException as e:
+        raise e  # Re-raise HTTPException if encountered
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")

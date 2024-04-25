@@ -21,6 +21,7 @@ def verify_hashdata(plain_data, hashed_data):
     return confirm
 
 
+
 def get_data_hash(data):
     hashed_data = pwd_context.hash(data)
     return hashed_data
