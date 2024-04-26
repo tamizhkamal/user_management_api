@@ -21,7 +21,12 @@ from user.models import UserMaster
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-router = APIRouter(tags=['Auth'])
+# router = APIRouter(tags=['Auth'])
+router = APIRouter(
+
+    prefix="/Auth",
+
+)
 
 def generate_otp():
     return "".join([str(random.randint(0, 9)) for i in range(6)])

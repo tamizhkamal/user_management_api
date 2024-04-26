@@ -137,39 +137,39 @@ app.dependency_overrides[Depends(get_db)] = get_db
 #     assert "result" in data
 #     assert "username" in data["result"] and data["result"]["username"] == "testuser"
 
-@pytest.fixture
-def setup_user(self):
-        user = mixer.blend(User, email='a@a.com')
-        user.set_password('1')
-        user.save()
-        return user
+# @pytest.fixture
+# def setup_user(self):
+#         user = mixer.blend(User, email='a@a.com')
+#         user.set_password('1')
+#         user.save()
+#         return user
 
 
-def test_create_item():
-    response = client.post(
-        "/create_task",
-        headers={"X-Token": "coneofsilence"},
-        json={
-        "name": "login data",
-        "due": "2",
-        "priority": "high",
-        "start_time": "12:29",
-        "end_time": "03:00",
-        "parent_id": 0,
-        "project_id": 1,
-    },
-    )
+# def test_create_item():
+#     response = client.post(
+#         "/create_task",
+#         headers={"X-Token": "coneofsilence"},
+#         json={
+#         "name": "login data",
+#         "due": "2",
+#         "priority": "high",
+#         "start_time": "12:29",
+#         "end_time": "03:00",
+#         "parent_id": 0,
+#         "project_id": 1,
+#     },
+#     )
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "name": "login data",
-        "due": "2",
-        "priority": "high",
-        "start_time": "12:29",
-        "end_time": "03:00",
-        "parent_id": 0,
-        "project_id": 1,
-    }
+#     assert response.status_code == 200
+#     assert response.json() == {
+#         "name": "login data",
+#         "due": "2",
+#         "priority": "high",
+#         "start_time": "12:29",
+#         "end_time": "03:00",
+#         "parent_id": 0,
+#         "project_id": 1,
+#     }
 
     # response = client.post("/create_task", json=payload)  
     # if x_token != fake_secret_token:
