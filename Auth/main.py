@@ -21,7 +21,11 @@ from user.models import UserMaster
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-router = APIRouter(tags=['Auth'])
+# router = APIRouter(tags=['Auth'])
+router = APIRouter(
+# router = APIRouter(tags=['Auth'])
+    prefix="/Auth",
+)
 
 def generate_otp():
     return "".join([str(random.randint(0, 9)) for i in range(6)])
@@ -35,6 +39,7 @@ def failure_message(message):
 
 @router.post("/token", response_model=Token, tags=["Authentication"])
 async def login_for_access_token(from_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    print(from_data,"<--------------------------- from_data")
     user = authendicate_user(db, from_data.username, from_data.password)
     
     if not user:
